@@ -60,43 +60,49 @@ log_info "  Truth VCF: ${ORIGINAL_VCF}"
 samtools faidx "${MUTATED_FASTA}"
 
 #-------------------------------------------------------------------------------
-# 4. Process truth VCF - Fix missing header
+# 4. Process truth VCF - Fix missing header before bcftools
 #-------------------------------------------------------------------------------
 log_info "Processing truth VCF..."
 
-# Create fixed VCF with proper header
 FIXED_VCF="${SIM_DIR}/${PREFIX}_truth_fixed.vcf"
+HEADER_FILE="${SIM_DIR}/header_fix.txt"
 
-# Add missing FORMAT header and fix VCF
+# Create new header with FORMAT GT definition
+cat > "${HEADER_FILE}" << 'EOF'
+##fileformat=VCFv4.2
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##INFO=<ID=TYPE,Number=1,Type=String,Description="Variant type">
+EOF
+
+# Build fixed VCF: new header + contig line + column header + data
 {
-    grep "^##" "${ORIGINAL_VCF}" | head -n -1
-    echo '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">'
-    grep "^##" "${ORIGINAL_VCF}" | tail -1
+    cat "${HEADER_FILE}"
+    grep "^##contig" "${ORIGINAL_VCF}" || echo "##contig=<ID=chr22>"
     grep "^#CHROM" "${ORIGINAL_VCF}"
-    grep -v "^#" "${ORIGINAL_VCF}"
+    grep -v "^#" "${ORIGINAL_VCF}" | sort -k1,1 -k2,2n
 } > "${FIXED_VCF}"
 
-# Sort, compress, index
-bcftools sort "${FIXED_VCF}" -Oz -o "${TRUTH_VCF}"
+# Compress and index using bgzip (not bcftools sort to avoid parsing issues)
+bgzip -c "${FIXED_VCF}" > "${TRUTH_VCF}"
 tabix -p vcf "${TRUTH_VCF}"
 
-# Create separate SNP and INDEL files for benchmarking
+# Create separate SNP and INDEL files
 bcftools view -v snps "${TRUTH_VCF}" -Oz -o "${SIM_DIR}/${PREFIX}_truth_snp.vcf.gz"
 bcftools view -v indels "${TRUTH_VCF}" -Oz -o "${SIM_DIR}/${PREFIX}_truth_indel.vcf.gz"
 tabix -p vcf "${SIM_DIR}/${PREFIX}_truth_snp.vcf.gz"
 tabix -p vcf "${SIM_DIR}/${PREFIX}_truth_indel.vcf.gz"
 
 # Count variants
-TOTAL_VARS=$(bcftools view -H "${TRUTH_VCF}" | wc -l)
-SNP_COUNT=$(bcftools view -H -v snps "${TRUTH_VCF}" | wc -l)
-INDEL_COUNT=$(bcftools view -H -v indels "${TRUTH_VCF}" | wc -l)
+TOTAL_VARS=$(zcat "${TRUTH_VCF}" | grep -v "^#" | wc -l)
+SNP_COUNT=$(zcat "${SIM_DIR}/${PREFIX}_truth_snp.vcf.gz" | grep -v "^#" | wc -l)
+INDEL_COUNT=$(zcat "${SIM_DIR}/${PREFIX}_truth_indel.vcf.gz" | grep -v "^#" | wc -l)
 
 log_info "  Total variants: ${TOTAL_VARS}"
 log_info "  SNPs: ${SNP_COUNT}"
 log_info "  Indels: ${INDEL_COUNT}"
 
-# Cleanup
-rm -f "${FIXED_VCF}"
+# Cleanup temp files
+rm -f "${FIXED_VCF}" "${HEADER_FILE}"
 
 #-------------------------------------------------------------------------------
 # 5. Generate reads with ART
@@ -122,11 +128,9 @@ art_illumina \
 
 check_exit "art_illumina"
 
-# Rename output files
+# Rename and compress output files
 mv "${READ_PREFIX}_1.fq" "${READ_PREFIX}_R1.fastq"
 mv "${READ_PREFIX}_2.fq" "${READ_PREFIX}_R2.fastq"
-
-# Compress
 gzip -f "${READ_PREFIX}_R1.fastq"
 gzip -f "${READ_PREFIX}_R2.fastq"
 
