@@ -32,7 +32,7 @@ check_tool() {
 }
 
 ensure_dir() {
-    [[ !  -d "$1" ]] && mkdir -p "$1"
+    [[ ! -d "$1" ]] && mkdir -p "$1"
 }
 
 start_timer() {
@@ -48,7 +48,7 @@ end_timer() {
 }
 
 check_exit() {
-    if [[ $?  -ne 0 ]]; then
+    if [[ $? -ne 0 ]]; then
         log_error "$1 failed"
         exit 1
     fi
