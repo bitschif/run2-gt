@@ -27,7 +27,7 @@ log_info "Running GATK HaplotypeCaller..."
 RAW_VCF="${OUT_DIR}/${PREFIX}_${CALLER}_raw.vcf.gz"
 
 gatk HaplotypeCaller \
-    ${JAVA_OPTS} \
+    --java-options "${JAVA_OPTS}" \
     -R "${REF_FASTA}" \
     -I "${FINAL_BAM}" \
     -O "${RAW_VCF}" \
