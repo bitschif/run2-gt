@@ -19,6 +19,7 @@ check_tool docker || exit 1
 # Input
 source "${PREPROC_DIR}/bam_path.sh"
 check_file "${FINAL_BAM}" || exit 1
+check_tool hap.py || exit 1
 
 OUT_DIR="${VARIANT_DIR}/${CALLER}"
 ensure_dir "${OUT_DIR}/intermediate"
@@ -110,21 +111,41 @@ index_vcf "${RAW_VCF}"
 bcftools view -f "PASS,." "${RAW_VCF}" -Oz -o "${PASS_VCF}"
 index_vcf "${PASS_VCF}"
 
+# Normalize for benchmarking consistency
+NORMALIZED_VCF="${OUT_DIR}/${PREFIX}_${CALLER}_pass.norm.vcf.gz"
+normalize_vcf "${PASS_VCF}" "${NORMALIZED_VCF}" "${REF_FASTA}"
+
 # Split by type
-bcftools view -v snps "${PASS_VCF}" -Oz -o "${OUT_DIR}/${PREFIX}_${CALLER}_snp.vcf.gz"
-bcftools view -v indels "${PASS_VCF}" -Oz -o "${OUT_DIR}/${PREFIX}_${CALLER}_indel.vcf.gz"
+bcftools view -v snps "${NORMALIZED_VCF}" -Oz -o "${OUT_DIR}/${PREFIX}_${CALLER}_snp.vcf.gz"
+bcftools view -v indels "${NORMALIZED_VCF}" -Oz -o "${OUT_DIR}/${PREFIX}_${CALLER}_indel.vcf.gz"
 index_vcf "${OUT_DIR}/${PREFIX}_${CALLER}_snp.vcf.gz"
 index_vcf "${OUT_DIR}/${PREFIX}_${CALLER}_indel.vcf.gz"
 
 #-------------------------------------------------------------------------------
 # 4. Stats
 #-------------------------------------------------------------------------------
-bcftools stats "${PASS_VCF}" > "${OUT_DIR}/${PREFIX}_${CALLER}_stats.txt"
+bcftools stats "${NORMALIZED_VCF}" > "${OUT_DIR}/${PREFIX}_${CALLER}_stats.txt"
 
-N_SNP=$(bcftools view -H -v snps "${PASS_VCF}" | wc -l)
-N_INDEL=$(bcftools view -H -v indels "${PASS_VCF}" | wc -l)
+N_SNP=$(bcftools view -H -v snps "${NORMALIZED_VCF}" | wc -l)
+N_INDEL=$(bcftools view -H -v indels "${NORMALIZED_VCF}" | wc -l)
 
 log_info "Results: $((N_SNP + N_INDEL)) variants (${N_SNP} SNPs, ${N_INDEL} INDELs)"
+
+#-------------------------------------------------------------------------------
+# 5. Benchmark with hap.py
+#-------------------------------------------------------------------------------
+log_info "Benchmarking ${CALLER} with hap.py..."
+HAPPY_PREFIX="${OUT_DIR}/benchmark/${PREFIX}_${CALLER}"
+run_happy "${TRUTH_VCF}" "${NORMALIZED_VCF}" "${HAPPY_PREFIX}"
+
+SUMMARY_CSV="${HAPPY_PREFIX}.summary.csv"
+SUMMARY_TSV="${OUT_DIR}/${PREFIX}_${CALLER}_happy_summary.tsv"
+echo -e "Caller\tVariantType\tTP\tFP\tFN\tPrecision\tRecall\tF1" > "${SUMMARY_TSV}"
+if [[ -f "${SUMMARY_CSV}" ]]; then
+    parse_happy_summary "${SUMMARY_CSV}" "${CALLER}" >> "${SUMMARY_TSV}"
+else
+    log_warn "hap.py summary not found for ${CALLER}"
+fi
 
 # Cleanup intermediate files
 rm -rf "${OUT_DIR}/intermediate"

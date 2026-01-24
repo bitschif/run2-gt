@@ -30,10 +30,17 @@ STATS_FILE="${METRICS_DIR}/variant_statistics.csv"
 echo "caller,total,snps,indels,titv_ratio" > "${STATS_FILE}"
 
 for caller in "${CALLERS[@]}"; do
+    normalized_vcf="${VARIANT_DIR}/${caller}/${PREFIX}_${caller}_pass.norm.vcf.gz"
     vcf="${VARIANT_DIR}/${caller}/${PREFIX}_${caller}_pass.vcf.gz"
     stats="${VARIANT_DIR}/${caller}/${PREFIX}_${caller}_stats.txt"
     
-    if [[ -f "${vcf}" ]]; then
+    if [[ -f "${normalized_vcf}" ]]; then
+        total=$(bcftools view -H "${normalized_vcf}" | wc -l)
+        snps=$(bcftools view -H -v snps "${normalized_vcf}" | wc -l)
+        indels=$(bcftools view -H -v indels "${normalized_vcf}" | wc -l)
+        titv=$(grep "TSTV" "${stats}" 2>/dev/null | head -1 | cut -f5 || echo "NA")
+        echo "${caller},${total},${snps},${indels},${titv}" >> "${STATS_FILE}"
+    elif [[ -f "${vcf}" ]]; then
         total=$(bcftools view -H "${vcf}" | wc -l)
         snps=$(bcftools view -H -v snps "${vcf}" | wc -l)
         indels=$(bcftools view -H -v indels "${vcf}" | wc -l)
