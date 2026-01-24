@@ -67,6 +67,20 @@ log_info "Processing DeepVariant output..."
 RAW_VCF="${OUT_DIR}/${PREFIX}_${CALLER}_raw.vcf.gz"
 PASS_VCF="${OUT_DIR}/${PREFIX}_${CALLER}_pass.vcf.gz"
 
+# Sanity check output
+check_file "${RAW_VCF}" || exit 1
+if [[ ! -s "${RAW_VCF}" ]]; then
+    log_error "DeepVariant output is empty: ${RAW_VCF}"
+    exit 1
+fi
+
+# Ensure sorted/bgzip for tabix (DeepVariant output can be unsorted)
+SORT_TMP="${OUT_DIR}/intermediate/bcftools_sort"
+ensure_dir "${SORT_TMP}"
+SORTED_VCF="${OUT_DIR}/${PREFIX}_${CALLER}_raw.sorted.vcf.gz"
+bcftools sort "${RAW_VCF}" -Oz -o "${SORTED_VCF}" -T "${SORT_TMP}"
+mv -f "${SORTED_VCF}" "${RAW_VCF}"
+
 # Index
 tabix -f -p vcf "${RAW_VCF}"
 
