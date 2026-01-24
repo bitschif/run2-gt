@@ -94,7 +94,7 @@ MARKED_BAM="${PREPROC_DIR}/${PREFIX}_marked.bam"
 DUP_METRICS="${PREPROC_DIR}/${PREFIX}_dup_metrics.txt"
 
 gatk MarkDuplicates \
-    ${JAVA_OPTS} \
+    --java-options "${JAVA_OPTS}" \
     -I "${ALIGNED_BAM}" \
     -O "${MARKED_BAM}" \
     -M "${DUP_METRICS}" \
@@ -123,7 +123,7 @@ if [[ -f "${DBSNP}" ]]; then
     [[ -f "${KNOWN_INDELS}" ]] && KNOWN_SITES_ARGS+="--known-sites ${KNOWN_INDELS} "
     
     gatk BaseRecalibrator \
-        ${JAVA_OPTS} \
+        --java-options "${JAVA_OPTS}" \
         -R "${REF_FASTA}" \
         -I "${MARKED_BAM}" \
         ${KNOWN_SITES_ARGS} \
@@ -132,7 +132,7 @@ if [[ -f "${DBSNP}" ]]; then
     
     # ApplyBQSR
     gatk ApplyBQSR \
-        ${JAVA_OPTS} \
+        --java-options "${JAVA_OPTS}" \
         -R "${REF_FASTA}" \
         -I "${MARKED_BAM}" \
         --bqsr-recal-file "${RECAL_TABLE}" \
