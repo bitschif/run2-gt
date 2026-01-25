@@ -4,6 +4,7 @@ suppressPackageStartupMessages({
   library(tidyverse)
   library(data.table)
   library(pheatmap)
+  library(jsonlite)
 })
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -15,22 +16,71 @@ bench_dir    <- file.path(project_dir, "results", "benchmarks")
 plot_dir     <- file.path(project_dir, "results", "plots")
 
 if (!file.exists(metrics_long)) {
+  metrics_json <- list.files(
+    bench_dir,
+    pattern = "\\.metrics\\.json\\.gz$",
+    recursive = TRUE,
+    full.names = TRUE
+  )
+  summary_csv <- list.files(
+    bench_dir,
+    pattern = "\\.summary\\.csv$",
+    recursive = TRUE,
+    full.names = TRUE
+  )
   metric_files <- list.files(bench_dir, pattern = "_metrics\\.tsv$", recursive = TRUE, full.names = TRUE)
-  if (length(metric_files) == 0) {
-    stop("Missing results/metrics_long.tsv and no *_metrics.tsv files found. Run hap.py first.")
+
+  if (length(metrics_json) == 0 && length(summary_csv) == 0 && length(metric_files) == 0) {
+    stop("Missing results/metrics_long.tsv and no hap.py metrics files found under results/benchmarks.")
   }
 
-  metrics_raw <- map_dfr(metric_files, function(path) {
-    fread(path) %>% as_tibble()
-  })
+  get_caller <- function(path) {
+    parent <- dirname(path)
+    if (basename(parent) == "happy") {
+      return(basename(dirname(parent)))
+    }
+    basename(parent)
+  }
 
-  metrics_long_data <- metrics_raw %>%
+  read_metrics_json <- function(path) {
+    raw <- jsonlite::fromJSON(gzfile(path), flatten = TRUE)
+    metrics <- raw
+    if ("metrics" %in% names(raw)) {
+      metrics <- raw$metrics
+    } else if ("summary" %in% names(raw)) {
+      metrics <- raw$summary
+    }
+    metrics_tbl <- as_tibble(metrics)
+    if (!"Type" %in% names(metrics_tbl) && "type" %in% names(metrics_tbl)) {
+      metrics_tbl <- metrics_tbl %>% rename(Type = type)
+    }
+    caller <- get_caller(path)
+    metrics_tbl %>% mutate(caller = caller)
+  }
+
+  read_summary_csv <- function(path) {
+    df <- suppressMessages(readr::read_csv(path, show_col_types = FALSE))
+    caller <- get_caller(path)
+    df %>% mutate(caller = caller)
+  }
+
+  metrics_raw <- list()
+  if (length(metrics_json) > 0) {
+    metrics_raw <- append(metrics_raw, list(map_dfr(metrics_json, read_metrics_json)))
+  }
+  if (length(summary_csv) > 0) {
+    metrics_raw <- append(metrics_raw, list(map_dfr(summary_csv, read_summary_csv)))
+  }
+  if (length(metric_files) > 0) {
+    metrics_raw <- append(metrics_raw, list(map_dfr(metric_files, ~fread(.x) %>% as_tibble())))
+  }
+
+  metrics_long_data <- bind_rows(metrics_raw) %>%
     rename(
-      caller = Caller,
-      Type = VariantType,
-      `METRIC.Precision` = Precision,
-      `METRIC.Recall` = Recall,
-      `METRIC.F1_Score` = F1
+      Type = any_of(c("VariantType", "Type")),
+      `METRIC.Precision` = any_of(c("Precision", "METRIC.Precision")),
+      `METRIC.Recall` = any_of(c("Recall", "METRIC.Recall")),
+      `METRIC.F1_Score` = any_of(c("F1", "METRIC.F1_Score", "F1_Score"))
     ) %>%
     mutate(
       caller = tolower(caller),
