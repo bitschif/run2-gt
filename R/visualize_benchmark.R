@@ -82,6 +82,39 @@ if (!file.exists(metrics_long)) {
       `METRIC.Recall` = any_of(c("Recall", "METRIC.Recall")),
       `METRIC.F1_Score` = any_of(c("F1", "METRIC.F1_Score", "F1_Score"))
     ) %>%
+    select(caller, any_of("Type"), any_of(c("METRIC.Precision", "METRIC.Recall", "METRIC.F1_Score")))
+
+  if (!"Type" %in% names(metrics_long_data)) {
+    metrics_long_data$Type <- NA_character_
+  }
+
+  for (col in c("METRIC.Precision", "METRIC.Recall", "METRIC.F1_Score")) {
+    if (!col %in% names(metrics_long_data)) {
+      metrics_long_data[[col]] <- NA_character_
+    }
+  }
+
+  coerce_atomic <- function(x) {
+    if (is.list(x)) {
+      vapply(x, function(value) {
+        if (length(value) == 0) {
+          NA_character_
+        } else {
+          as.character(value[[1]])
+        }
+      }, character(1))
+    } else {
+      x
+    }
+  }
+
+  metrics_long_data <- metrics_long_data %>%
+    mutate(across(everything(), coerce_atomic)) %>%
+    mutate(
+      `METRIC.Precision` = as.numeric(`METRIC.Precision`),
+      `METRIC.Recall` = as.numeric(`METRIC.Recall`),
+      `METRIC.F1_Score` = as.numeric(`METRIC.F1_Score`)
+    ) %>%
     mutate(
       caller = tolower(caller),
       Type = toupper(Type)
