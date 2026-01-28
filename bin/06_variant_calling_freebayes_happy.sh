@@ -19,7 +19,7 @@ NORMALIZED_VCF="${OUT_DIR}/${PREFIX}_${CALLER}_pass.norm.vcf.gz"
 TRUTH_NORM="${BENCH_DIR}/truth/${PREFIX}_truth.norm.vcf.gz"
 if [[ ! -f "${TRUTH_NORM}" ]]; then
     ensure_dir "$(dirname "${TRUTH_NORM}")"
-    "${ROOT_DIR}/lib/normalize_vcf.sh" "${TRUTH_VCF}" "${TRUTH_NORM}" "${REF_FASTA}"
+    bash "${ROOT_DIR}/lib/normalize_vcf.sh" "${TRUTH_VCF}" "${TRUTH_NORM}" "${REF_FASTA}"
 fi
 
 if command -v conda &> /dev/null; then

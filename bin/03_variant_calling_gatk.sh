@@ -78,12 +78,12 @@ tabix -p vcf "${OUT_DIR}/${PREFIX}_${CALLER}_indel.vcf.gz"
 #-------------------------------------------------------------------------------
 
 NORMALIZED_VCF="${OUT_DIR}/${PREFIX}_${CALLER}_pass.norm.vcf.gz"
-"${ROOT_DIR}/lib/normalize_vcf.sh" "${PASS_VCF}" "${NORMALIZED_VCF}" "${REF_FASTA}"
+bash "${ROOT_DIR}/lib/normalize_vcf.sh" "${PASS_VCF}" "${NORMALIZED_VCF}" "${REF_FASTA}"
 
 TRUTH_NORM="${BENCH_DIR}/truth/${PREFIX}_truth.norm.vcf.gz"
 if [[ ! -f "${TRUTH_NORM}" ]]; then
     ensure_dir "$(dirname "${TRUTH_NORM}")"
-    "${ROOT_DIR}/lib/normalize_vcf.sh" "${TRUTH_VCF}" "${TRUTH_NORM}" "${REF_FASTA}"
+    bash "${ROOT_DIR}/lib/normalize_vcf.sh" "${TRUTH_VCF}" "${TRUTH_NORM}" "${REF_FASTA}"
 fi
 
 #-------------------------------------------------------------------------------
@@ -93,5 +93,4 @@ bcftools stats "${PASS_VCF}" > "${OUT_DIR}/${PREFIX}_${CALLER}_stats.txt"
 
 N_SNP=$(bcftools view -H -v snps "${PASS_VCF}" | wc -l)
 N_INDEL=$(bcftools view -H -v indels "${PASS_VCF}" | wc -l)
-
 
